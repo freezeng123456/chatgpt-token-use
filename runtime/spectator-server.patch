@@ -1,0 +1,31 @@
+--- a/node_modules/prismarine-viewer/lib/mineflayer.js
++++ b/node_modules/prismarine-viewer/lib/mineflayer.js
+@@ -1,7 +1,7 @@
+ const EventEmitter = require('events')
+-const { WorldView } = require('../viewer')
++const { WorldView } = require('../viewer/lib/worldView')
+ 
+-module.exports = (bot, { viewDistance = 6, firstPerson = false, port = 3000, prefix = '' }) => {
++module.exports = (bot, { viewDistance = 6, firstPerson = false, port = 3000, prefix = '', host }) => {
+   const express = require('express')
+ 
+   const app = express()
+@@ -69,6 +69,7 @@
+       worldView.updatePosition(bot.entity.position)
+     }
+ 
++    botPosition()
+     bot.on('move', botPosition)
+     worldView.listenToBot(bot)
+     socket.on('disconnect', () => {
+@@ -78,8 +79,8 @@
+     })
+   })
+ 
+-  http.listen(port, () => {
+-    console.log(`Prismarine viewer web server running on *:${port}`)
++  http.listen(port, host, () => {
++    console.log(`Prismarine viewer web server running on ${host ?? '*'}:${port}`)
+   })
+ 
+   bot.viewer.close = () => {

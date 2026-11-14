@@ -1,0 +1,139 @@
+diff --git a/src/agent/agent.js b/src/agent/agent.js
+index 5f5bf31..e303679 100644
+--- a/src/agent/agent.js
++++ b/src/agent/agent.js
+@@ -109,9 +109,10 @@ export class Agent {
+         this.bot.once('spawn', async () => {
+             try {
+                 clearTimeout(spawnTimeout);
+-                addBrowserViewer(this.bot, count_id);
++                await addBrowserViewer(this.bot, count_id);
+                 console.log('Initializing vision intepreter...');
+-                this.vision_interpreter = new VisionInterpreter(this, settings.allow_vision);
++                const camera = settings.allow_vision ? await import('./vision/camera.js') : null;
++                this.vision_interpreter = new VisionInterpreter(this, camera?.Camera);
+ 
+                 // wait for a bit so stats are not undefined
+                 await new Promise((resolve) => setTimeout(resolve, 1000));
+diff --git a/src/agent/conversation.js b/src/agent/conversation.js
+index 1cd781e..3031d3b 100644
+--- a/src/agent/conversation.js
++++ b/src/agent/conversation.js
+@@ -63,6 +63,8 @@ class ConversationManager {
+ 
+     _startMonitor() {
+         clearInterval(this.connection_monitor);
++        const initialWaitTime = settings.conversation_wait_ms ?? WAIT_TIME_START;
++        this.wait_time_limit = initialWaitTime;
+         let wait_time = 0;
+         let last_time = Date.now();
+         this.connection_monitor = setInterval(() => {
+@@ -84,7 +86,7 @@ class ConversationManager {
+                 }
+             }
+             else if (!this.awaiting_response){
+-                this.wait_time_limit = WAIT_TIME_START;
++                this.wait_time_limit = initialWaitTime;
+                 wait_time = 0;
+             }
+ 
+diff --git a/src/agent/vision/browser_viewer.js b/src/agent/vision/browser_viewer.js
+index 6cce3ed..165754b 100644
+--- a/src/agent/vision/browser_viewer.js
++++ b/src/agent/vision/browser_viewer.js
+@@ -1,8 +1,12 @@
+ import settings from '../settings.js';
+-import prismarineViewer from 'prismarine-viewer';
+-const mineflayerViewer = prismarineViewer.mineflayer;
+-
+-export function addBrowserViewer(bot, count_id) {
+-    if (settings.render_bot_view)
+-        mineflayerViewer(bot, { port: 3000+count_id, firstPerson: true, });
+-}
+\ No newline at end of file
++export async function addBrowserViewer(bot, count_id) {
++    if (settings.render_bot_view) {
++        const { default: mineflayerViewer } = await import('prismarine-viewer/lib/mineflayer.js');
++        mineflayerViewer(bot, {
++            host: 'localhost',
++            port: 3000 + count_id,
++            viewDistance: 4,
++            firstPerson: count_id === 0
++        });
++    }
++}
+diff --git a/src/agent/vision/vision_interpreter.js b/src/agent/vision/vision_interpreter.js
+index a43acd2..a5f7699 100644
+--- a/src/agent/vision/vision_interpreter.js
++++ b/src/agent/vision/vision_interpreter.js
+@@ -1,13 +1,12 @@
+ import { Vec3 } from 'vec3';
+-import { Camera } from "./camera.js";
+ import fs from 'fs';
+ 
+ export class VisionInterpreter {
+-    constructor(agent, allow_vision) {
++    constructor(agent, Camera) {
+         this.agent = agent;
+-        this.allow_vision = allow_vision;
++        this.allow_vision = Boolean(Camera);
+         this.fp = './bots/'+agent.name+'/screenshots/';
+-        if (allow_vision) {
++        if (Camera) {
+             this.camera = new Camera(agent.bot, this.fp);
+         }
+     }
+@@ -78,4 +77,4 @@ export class VisionInterpreter {
+             return `Error reading image: ${error.message}`;
+         }
+     }
+-} 
+\ No newline at end of file
++}
+diff --git a/src/models/prompter.js b/src/models/prompter.js
+index d24b88b..22514e6 100644
+--- a/src/models/prompter.js
++++ b/src/models/prompter.js
+@@ -84,7 +84,10 @@ export class Prompter {
+                 embedding_model_profile = null;
+             }
+         }
+-        if (embedding_model_profile) {
++        if (this.profile.embedding === false) {
++            this.embedding_model = null;
++        }
++        else if (embedding_model_profile) {
+             this.embedding_model = createModel(embedding_model_profile);
+         }
+         else {
+--- a/node_modules/prismarine-viewer/lib/mineflayer.js
++++ b/node_modules/prismarine-viewer/lib/mineflayer.js
+@@ -1,7 +1,7 @@
+ const EventEmitter = require('events')
+-const { WorldView } = require('../viewer')
++const { WorldView } = require('../viewer/lib/worldView')
+ 
+-module.exports = (bot, { viewDistance = 6, firstPerson = false, port = 3000, prefix = '' }) => {
++module.exports = (bot, { viewDistance = 6, firstPerson = false, port = 3000, prefix = '', host }) => {
+   const express = require('express')
+ 
+   const app = express()
+@@ -69,6 +69,7 @@
+       worldView.updatePosition(bot.entity.position)
+     }
+ 
++    botPosition()
+     bot.on('move', botPosition)
+     worldView.listenToBot(bot)
+     socket.on('disconnect', () => {
+@@ -78,8 +79,8 @@
+     })
+   })
+ 
+-  http.listen(port, () => {
+-    console.log(`Prismarine viewer web server running on *:${port}`)
++  http.listen(port, host, () => {
++    console.log(`Prismarine viewer web server running on ${host ?? '*'}:${port}`)
+   })
+ 
+   bot.viewer.close = () => {

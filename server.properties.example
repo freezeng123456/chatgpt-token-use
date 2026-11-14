@@ -1,0 +1,11 @@
+# Local-only demo; install the official Minecraft 1.21.6 server separately.
+server-ip=127.0.0.1
+server-port=25586
+level-name=mindcraft-garden
+level-type=minecraft\:normal
+level-seed=314159265
+gamemode=creative
+difficulty=peaceful
+online-mode=false
+view-distance=5
+simulation-distance=4

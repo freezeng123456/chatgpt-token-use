@@ -1,0 +1,15 @@
+# Credentials, local state, worlds and generated files
+.env
+.env.*
+!.env.example
+.secrets/
+**/keys.json
+**/node_modules/
+**/*.log
+**/.DS_Store
+villa-usage.json
+garden-camera-blocks.json
+runtime/viewer-before-height-fix/
+runtime/viewer-index-before-garden-outfits.js
+garden-server/
+server/
